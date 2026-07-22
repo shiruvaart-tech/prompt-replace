@@ -1,16 +1,15 @@
 import streamlit as st
-from google import genai
-from google.genai import types
+import google.generativeai as genai
 
 st.set_page_config(page_title="画像生成プロンプトジェネレーター", page_icon="🎨", layout="centered")
 
 st.title("🎨 画像生成プロンプトジェネレーター")
 st.caption("単語やイメージから、指定したUIツール・モデルに最適化された画像プロンプトを作成します（Gemini Free API版）。")
 
-# --- APIキー取得 ＆ Gemini クライアント初期化 ---
+# --- APIキー取得 ＆ Gemini 設定 ---
 try:
     api_key = st.secrets["GEMINI_API_KEY"]
-    client = genai.Client(api_key=api_key)
+    genai.configure(api_key=api_key)
 except Exception:
     st.error("⚠️ GEMINI_API_KEY が設定されていません。Streamlit の Settings > Secrets を確認してください。")
     st.stop()
@@ -136,14 +135,17 @@ if generate_btn:
             user_prompt = f"以下の要素から画像生成プロンプトを作成してください:\n\n{keyword_input}"
 
             try:
-                # 無料枠で最も確実に動作する gemini-1.5-flash を指定
-                response = client.models.generate_content(
-                    model='gemini-1.5-flash',
-                    contents=user_prompt,
-                    config=types.GenerateContentConfig(
-                        system_instruction=system_instruction,
-                        temperature=0.7,
-                    ),
+                # 安定版の「gemini-1.5-flash」を GenerativeModel で呼び出し
+                model = genai.GenerativeModel(
+                    model_name='gemini-1.5-flash',
+                    system_instruction=system_instruction
+                )
+                
+                response = model.generate_content(
+                    user_prompt,
+                    generation_config=genai.types.GenerationConfig(
+                        temperature=0.7
+                    )
                 )
                 
                 generated_prompt = response.text
