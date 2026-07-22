@@ -1,15 +1,16 @@
 import streamlit as st
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 
 st.set_page_config(page_title="画像生成プロンプトジェネレーター", page_icon="🎨", layout="centered")
 
 st.title("🎨 画像生成プロンプトジェネレーター")
 st.caption("単語やイメージから、指定したUIツール・モデルに最適化された画像プロンプトを作成します（Gemini Free API版）。")
 
-# --- APIキー取得 ＆ Gemini 設定 ---
+# --- APIキー取得 ＆ Gemini クライアント初期化 ---
 try:
     api_key = st.secrets["GEMINI_API_KEY"]
-    genai.configure(api_key=api_key)
+    client = genai.Client(api_key=api_key)
 except Exception:
     st.error("⚠️ GEMINI_API_KEY が設定されていません。Streamlit の Settings > Secrets を確認してください。")
     st.stop()
@@ -134,25 +135,30 @@ if generate_btn:
 
             user_prompt = f"以下の要素から画像生成プロンプトを作成してください:\n\n{keyword_input}"
 
-            try:
-                # 安定版の「gemini-1.5-flash」を GenerativeModel で呼び出し
-                model = genai.GenerativeModel(
-                    model_name='gemini-1.5-flash',
-                    system_instruction=system_instruction
-                )
-                
-                response = model.generate_content(
-                    user_prompt,
-                    generation_config=genai.types.GenerationConfig(
-                        temperature=0.7
+            # --- 候補モデルを順番に試行して確実に実行する ---
+            candidate_models = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash']
+            response = None
+            last_error = None
+
+            for model_name in candidate_models:
+                try:
+                    response = client.models.generate_content(
+                        model=model_name,
+                        contents=user_prompt,
+                        config=types.GenerateContentConfig(
+                            system_instruction=system_instruction,
+                            temperature=0.7,
+                        ),
                     )
-                )
-                
-                generated_prompt = response.text
+                    if response and response.text:
+                        break
+                except Exception as e:
+                    last_error = e
+                    continue
 
+            if response and response.text:
                 st.subheader("2. 生成されたプロンプト")
-                st.code(generated_prompt, language="markdown")
+                st.code(response.text, language="markdown")
                 st.success("✅ 生成完了！右上のコピーアイコンでクリップボードにコピーできます。")
-
-            except Exception as e:
-                st.error(f"エラーが発生しました: {e}")
+            else:
+                st.error(f"すべてのモデル呼び出しに失敗しました。最新のエラー: {last_error}")
