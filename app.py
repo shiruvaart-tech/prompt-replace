@@ -136,9 +136,9 @@ if generate_btn:
             user_prompt = f"以下の要素から画像生成プロンプトを作成してください:\n\n{keyword_input}"
 
             try:
-                # Gemini 2.0 Flash モデルを使用して生成
+                # 無料枠で最も確実に動作する gemini-1.5-flash を指定
                 response = client.models.generate_content(
-                    model='gemini-2.0-flash',
+                    model='gemini-1.5-flash',
                     contents=user_prompt,
                     config=types.GenerateContentConfig(
                         system_instruction=system_instruction,
