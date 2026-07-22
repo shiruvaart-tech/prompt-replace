@@ -23,7 +23,7 @@ col1, col2 = st.columns(2)
 with col1:
     ui_tool = st.selectbox(
         "🛠️ 使用ツール (UI)",
-        ["ComfyUI", "AUTOMATIC1111 (WebUI) / Forge", "WebUI / Webサービス (Krea / Midjourney等)"]
+        ["AUTOMATIC1111 (WebUI) / Forge", "ComfyUI", "WebUI / Webサービス (Krea / Midjourney等)"]
     )
 
 with col2:
@@ -136,9 +136,9 @@ if generate_btn:
             user_prompt = f"以下の要素から画像生成プロンプトを作成してください:\n\n{keyword_input}"
 
             try:
-                # Gemini 1.5 Flash モデルを使用して生成
+                # Gemini 2.0 Flash モデルを使用して生成
                 response = client.models.generate_content(
-                    model='gemini-1.5-flash',
+                    model='gemini-2.0-flash',
                     contents=user_prompt,
                     config=types.GenerateContentConfig(
                         system_instruction=system_instruction,
