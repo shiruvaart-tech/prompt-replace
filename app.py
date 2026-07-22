@@ -5,7 +5,7 @@ from google.genai import types
 st.set_page_config(page_title="画像生成プロンプトジェネレーター", page_icon="🎨", layout="centered")
 
 st.title("🎨 画像生成プロンプトジェネレーター")
-st.caption("単語やイメージから、指定したUIツール・モデルに最適化された画像プロンプトを作成します（Gemini Free API版）。")
+st.caption("単語やイメージから、指定したUIツール・モデルに最適化された画像プロンプトを作成します。")
 
 # --- APIキー取得 ＆ Gemini クライアント初期化 ---
 try:
@@ -73,27 +73,6 @@ if generate_btn:
     else:
         with st.spinner("Gemini がモデル別プロンプトを構築中..."):
 
-            # --- 利用可能なモデルを自動取得する安全装置 ---
-            target_model = None
-            try:
-                # 利用可能なモデルの一覧を取得
-                available_models = [m.name.replace("models/", "") for m in client.models.list()]
-                
-                # 優先度の高いモデルから検索
-                priority_list = ["gemini-2.0-flash", "gemini-1.5-flash-8b", "gemini-1.5-flash", "gemini-1.5-pro"]
-                for p in priority_list:
-                    if p in available_models:
-                        target_model = p
-                        break
-                
-                # 万が一優先リストになければ、generateContentに対応している最初のモデルを選択
-                if not target_model and available_models:
-                    target_model = available_models[0]
-
-            except Exception:
-                # リスト取得に失敗した場合は標準の 2.0-flash を直接指定
-                target_model = "gemini-2.0-flash"
-
             # --- モデルごとのプロンプト生成プロトコル定義 ---
             arch_instruction = ""
             
@@ -156,24 +135,34 @@ if generate_btn:
 
             user_prompt = f"以下の要素から画像生成プロンプトを作成してください:\n\n{keyword_input}"
 
-            # --- 生成呼び出し ---
-            try:
-                response = client.models.generate_content(
-                    model=target_model,
-                    contents=user_prompt,
-                    config=types.GenerateContentConfig(
-                        system_instruction=system_instruction,
-                        temperature=0.7,
-                    ),
-                )
+            # --- 試行するモデルリスト ---
+            candidate_models = ["gemini-2.0-flash", "gemini-1.5-flash-8b", "gemini-1.5-flash", "gemini-1.5-pro"]
+            
+            success = False
+            last_err = ""
 
-                if response and response.text:
-                    st.subheader("2. 生成されたプロンプト")
-                    st.code(response.text, language="markdown")
-                    st.caption(f"使用モデル: {target_model}")
-                    st.success("✅ 生成完了！右上のコピーアイコンでクリップボードにコピーできます。")
-                else:
-                    st.error("レスポンスの取得に失敗しました。")
+            for m in candidate_models:
+                try:
+                    response = client.models.generate_content(
+                        model=m,
+                        contents=user_prompt,
+                        config=types.GenerateContentConfig(
+                            system_instruction=system_instruction,
+                            temperature=0.7,
+                        ),
+                    )
+                    if response and response.text:
+                        st.subheader("2. 生成されたプロンプト")
+                        st.code(response.text, language="markdown")
+                        st.caption(f"使用モデル: {m}")
+                        st.success("✅ 生成完了！右上のコピーアイコンでクリップボードにコピーできます。")
+                        success = True
+                        break
+                except Exception as e:
+                    last_err = str(e)
+                    continue
 
-            except Exception as e:
-                st.error(f"API呼び出しエラー ({target_model}): {e}")
+            if not success:
+                st.error("⚠️ 無料枠の制限（Quota limit: 0）にかかっています。")
+                st.info("💡 **対解策:** Google AI Studio で新しい API Key を再発行するか、[Google AI Studio](https://aistudio.google.com/) で Billing（従量課金）を有効にすると即座に解消されます。")
+                st.caption(f"詳細エラー: {last_err}")
