@@ -1,17 +1,18 @@
 import streamlit as st
-import anthropic
+from google import genai
+from google.genai import types
 
 st.set_page_config(page_title="画像生成プロンプトジェネレーター", page_icon="🎨", layout="centered")
 
 st.title("🎨 画像生成プロンプトジェネレーター")
-st.caption("単語やイメージから、指定したUIツール・モデルに最適化された画像プロンプトを作成します。")
+st.caption("単語やイメージから、指定したUIツール・モデルに最適化された画像プロンプトを作成します（Gemini Free API版）。")
 
-# APIキー取得
+# --- APIキー取得 ＆ Gemini クライアント初期化 ---
 try:
-    api_key = st.secrets["ANTHROPIC_API_KEY"]
-    client = anthropic.Anthropic(api_key=api_key)
+    api_key = st.secrets["GEMINI_API_KEY"]
+    client = genai.Client(api_key=api_key)
 except Exception:
-    st.error("⚠️ ANTHROPIC_API_KEY が設定されていません。Secretsを確認してください。")
+    st.error("⚠️ GEMINI_API_KEY が設定されていません。Streamlit の Settings > Secrets を確認してください。")
     st.stop()
 
 # --- パラメータ選択 ---
@@ -70,7 +71,7 @@ if generate_btn:
     if not keyword_input.strip():
         st.warning("⚠️ 単語またはアイデアを入力してください。")
     else:
-        with st.spinner("Claude がモデル別プロンプトを構築中..."):
+        with st.spinner("Gemini がモデル別プロンプトを構築中..."):
 
             # --- モデルごとのプロンプト生成プロトコル定義 ---
             arch_instruction = ""
@@ -117,7 +118,7 @@ if generate_btn:
 """
 
             # --- システムプロンプトの組み立て ---
-            system_prompt = f"""あなたは画像生成AI（Krea 2, Stable Diffusion, ComfyUI, FLUX等）のプロンプトエンジニアリングのスペシャリストです。
+            system_instruction = f"""あなたは画像生成AI（Krea 2, Stable Diffusion, ComfyUI, FLUX等）のプロンプトエンジニアリングのスペシャリストです。
 ユーザーが与えた単語/シチュエーションをもとに、指定されたツールおよびモデルアーキテクチャで最高の画質・再現度が得られる画像生成プロンプトを作成してください。
 
 【環境設定】
@@ -135,14 +136,17 @@ if generate_btn:
             user_prompt = f"以下の要素から画像生成プロンプトを作成してください:\n\n{keyword_input}"
 
             try:
-                response = client.messages.create(
-                    model="claude-3-5-sonnet-20240620",
-                    max_tokens=2000,
-                    system=system_prompt,
-                    messages=[{"role": "user", "content": user_prompt}]
+                # Gemini 2.5 Flash モデルを使用して生成
+                response = client.models.generate_content(
+                    model='gemini-2.5-flash',
+                    contents=user_prompt,
+                    config=types.GenerateContentConfig(
+                        system_instruction=system_instruction,
+                        temperature=0.7,
+                    ),
                 )
                 
-                generated_prompt = response.content[0].text
+                generated_prompt = response.text
 
                 st.subheader("2. 生成されたプロンプト")
                 st.code(generated_prompt, language="markdown")
