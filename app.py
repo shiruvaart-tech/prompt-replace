@@ -73,6 +73,27 @@ if generate_btn:
     else:
         with st.spinner("Gemini がモデル別プロンプトを構築中..."):
 
+            # --- 利用可能なモデルを自動取得する安全装置 ---
+            target_model = None
+            try:
+                # 利用可能なモデルの一覧を取得
+                available_models = [m.name.replace("models/", "") for m in client.models.list()]
+                
+                # 優先度の高いモデルから検索
+                priority_list = ["gemini-2.0-flash", "gemini-1.5-flash-8b", "gemini-1.5-flash", "gemini-1.5-pro"]
+                for p in priority_list:
+                    if p in available_models:
+                        target_model = p
+                        break
+                
+                # 万が一優先リストになければ、generateContentに対応している最初のモデルを選択
+                if not target_model and available_models:
+                    target_model = available_models[0]
+
+            except Exception:
+                # リスト取得に失敗した場合は標準の 2.0-flash を直接指定
+                target_model = "gemini-2.0-flash"
+
             # --- モデルごとのプロンプト生成プロトコル定義 ---
             arch_instruction = ""
             
@@ -135,30 +156,24 @@ if generate_btn:
 
             user_prompt = f"以下の要素から画像生成プロンプトを作成してください:\n\n{keyword_input}"
 
-            # --- 候補モデルを順番に試行して確実に実行する ---
-            candidate_models = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash']
-            response = None
-            last_error = None
+            # --- 生成呼び出し ---
+            try:
+                response = client.models.generate_content(
+                    model=target_model,
+                    contents=user_prompt,
+                    config=types.GenerateContentConfig(
+                        system_instruction=system_instruction,
+                        temperature=0.7,
+                    ),
+                )
 
-            for model_name in candidate_models:
-                try:
-                    response = client.models.generate_content(
-                        model=model_name,
-                        contents=user_prompt,
-                        config=types.GenerateContentConfig(
-                            system_instruction=system_instruction,
-                            temperature=0.7,
-                        ),
-                    )
-                    if response and response.text:
-                        break
-                except Exception as e:
-                    last_error = e
-                    continue
+                if response and response.text:
+                    st.subheader("2. 生成されたプロンプト")
+                    st.code(response.text, language="markdown")
+                    st.caption(f"使用モデル: {target_model}")
+                    st.success("✅ 生成完了！右上のコピーアイコンでクリップボードにコピーできます。")
+                else:
+                    st.error("レスポンスの取得に失敗しました。")
 
-            if response and response.text:
-                st.subheader("2. 生成されたプロンプト")
-                st.code(response.text, language="markdown")
-                st.success("✅ 生成完了！右上のコピーアイコンでクリップボードにコピーできます。")
-            else:
-                st.error(f"すべてのモデル呼び出しに失敗しました。最新のエラー: {last_error}")
+            except Exception as e:
+                st.error(f"API呼び出しエラー ({target_model}): {e}")
